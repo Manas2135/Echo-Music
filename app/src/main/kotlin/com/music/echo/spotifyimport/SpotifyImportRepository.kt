@@ -700,7 +700,7 @@ sealed interface SpotifyImportSource {
     override val subtitle: String = playlist.owner?.displayName.orEmpty()
     override val thumbnailUrl: String? = SpotifyMapper.getPlaylistThumbnail(playlist)
     override val trackCount: Int? = playlist.tracks?.total
-    override val localPlaylistId: String = "$SPOTIFY_PLAYLIST_PREFIX${playlist.id}"
+    override val localPlaylistId: String = "${SpotifyImportRepository.SPOTIFY_PLAYLIST_PREFIX}${playlist.id}"
     override val type: SpotifyImportSourceType = SpotifyImportSourceType.PLAYLIST
   }
 
@@ -711,7 +711,7 @@ sealed interface SpotifyImportSource {
     override val id: String = "liked_songs"
     override val subtitle: String = ""
     override val thumbnailUrl: String? = null
-    override val localPlaylistId: String = SPOTIFY_LIKED_SONGS_PLAYLIST_ID
+    override val localPlaylistId: String = SpotifyImportRepository.SPOTIFY_LIKED_SONGS_PLAYLIST_ID
     override val type: SpotifyImportSourceType = SpotifyImportSourceType.LIKED_SONGS
   }
 }
