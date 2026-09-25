@@ -264,10 +264,10 @@ constructor(
       ensureAuthenticated()
 
       val source =
-        if (localPlaylistId == "SPOTIFY_LIKED_SONGS") {
+        if (localPlaylistId == SPOTIFY_LIKED_SONGS_PLAYLIST_ID) {
           SpotifyImportSource.LikedSongs("Liked Songs", 0)
-        } else if (localPlaylistId.startsWith("SPOTIFY_PLAYLIST_")) {
-          val spotifyId = localPlaylistId.removePrefix("SPOTIFY_PLAYLIST_")
+        } else if (localPlaylistId.startsWith(SPOTIFY_PLAYLIST_PREFIX)) {
+          val spotifyId = localPlaylistId.removePrefix(SPOTIFY_PLAYLIST_PREFIX)
           val playlist = spotifyCallWithTokenRetry { Spotify.playlist(spotifyId).getOrThrow() }
           SpotifyImportSource.Playlist(playlist)
         } else {
@@ -309,6 +309,30 @@ constructor(
 
       timber.log.Timber.d("SyncPlaylist: Final tracks count: ${finalTracks.size}")
       mirrorPlaylist(source, finalTracks)
+    }
+
+  suspend fun migrateSpotifyLikedSongsToNativeLiked(): Int =
+    withContext(Dispatchers.IO) {
+      val playlistSongs = database.playlistSongs(SPOTIFY_LIKED_SONGS_PLAYLIST_ID).first()
+      if (playlistSongs.isEmpty()) return@withContext 0
+
+      val now = LocalDateTime.now()
+      var migratedCount = 0
+
+      database.withTransaction {
+        playlistSongs
+          .asSequence()
+          .map { it.song.song }
+          .distinctBy { it.id }
+          .forEach { song ->
+            if (!song.liked) {
+              update(song.copy(liked = true, likedDate = song.likedDate ?: now))
+              migratedCount++
+            }
+          }
+      }
+
+      migratedCount
     }
 
   private suspend fun ensureAuthenticated() {
@@ -642,6 +666,8 @@ constructor(
   )
 
   companion object {
+    const val SPOTIFY_LIKED_SONGS_PLAYLIST_ID = "SPOTIFY_LIKED_SONGS"
+    const val SPOTIFY_PLAYLIST_PREFIX = "SPOTIFY_PLAYLIST_"
     private const val MAX_CONCURRENT_MATCHES = 4
     private const val MAX_CONCURRENT_SPOTIFY_COUNT_REQUESTS = 4
     private const val TOKEN_EXPIRY_GRACE_MS = 60_000L
@@ -674,7 +700,7 @@ sealed interface SpotifyImportSource {
     override val subtitle: String = playlist.owner?.displayName.orEmpty()
     override val thumbnailUrl: String? = SpotifyMapper.getPlaylistThumbnail(playlist)
     override val trackCount: Int? = playlist.tracks?.total
-    override val localPlaylistId: String = "SPOTIFY_PLAYLIST_${playlist.id}"
+    override val localPlaylistId: String = "$SPOTIFY_PLAYLIST_PREFIX${playlist.id}"
     override val type: SpotifyImportSourceType = SpotifyImportSourceType.PLAYLIST
   }
 
@@ -685,7 +711,7 @@ sealed interface SpotifyImportSource {
     override val id: String = "liked_songs"
     override val subtitle: String = ""
     override val thumbnailUrl: String? = null
-    override val localPlaylistId: String = "SPOTIFY_LIKED_SONGS"
+    override val localPlaylistId: String = SPOTIFY_LIKED_SONGS_PLAYLIST_ID
     override val type: SpotifyImportSourceType = SpotifyImportSourceType.LIKED_SONGS
   }
 }
