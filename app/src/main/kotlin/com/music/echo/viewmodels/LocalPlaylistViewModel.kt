@@ -119,7 +119,10 @@ constructor(
       val pl = playlist.first { it != null }
       if (pl != null) {
         val pId = pl.playlist.id
-        if (pId.startsWith("SPOTIFY_PLAYLIST_") || pId == "SPOTIFY_LIKED_SONGS") {
+        if (
+          pId.startsWith(SpotifyImportRepository.SPOTIFY_PLAYLIST_PREFIX) ||
+            pId == SpotifyImportRepository.SPOTIFY_LIKED_SONGS_PLAYLIST_ID
+        ) {
           syncWithSpotify()
         }
       }
@@ -191,5 +194,10 @@ constructor(
       isSpotifySyncing.value = false
       false
     }
+  }
+
+  suspend fun migrateSpotifyLikedSongsToNativeLiked(): Int {
+    if (playlistId != SpotifyImportRepository.SPOTIFY_LIKED_SONGS_PLAYLIST_ID) return 0
+    return spotifyImportRepository.migrateSpotifyLikedSongsToNativeLiked()
   }
 }

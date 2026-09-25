@@ -135,6 +135,7 @@ import echo.music.iad1tya.extensions.toMediaItem
 import echo.music.iad1tya.models.toMediaMetadata
 import echo.music.iad1tya.playback.ExoDownloadService
 import echo.music.iad1tya.playback.queues.ListQueue
+import echo.music.iad1tya.spotifyimport.SpotifyImportRepository
 import echo.music.iad1tya.ui.component.ActionPromptDialog
 import echo.music.iad1tya.ui.component.DefaultDialog
 import echo.music.iad1tya.ui.component.DraggableScrollbar
@@ -805,10 +806,10 @@ fun LocalPlaylistScreen(
             Icon(painter = painterResource(R.drawable.more_vert), contentDescription = null)
           }
         } else if (!isSearching) {
-
+          val playlistLocalId = playlist?.playlist?.id
           if (
-            playlist?.playlist?.id?.startsWith("SPOTIFY_PLAYLIST_") == true ||
-              playlist?.playlist?.id == "SPOTIFY_LIKED_SONGS"
+            playlistLocalId?.startsWith(SpotifyImportRepository.SPOTIFY_PLAYLIST_PREFIX) == true ||
+              playlistLocalId == SpotifyImportRepository.SPOTIFY_LIKED_SONGS_PLAYLIST_ID
           ) {
             var isSyncing by rememberSaveable { mutableStateOf(false) }
             IconButton(
@@ -849,6 +850,53 @@ fun LocalPlaylistScreen(
                 Icon(
                   painter = painterResource(R.drawable.sync),
                   contentDescription = "Sync with Spotify"
+                )
+              }
+            }
+          }
+          if (playlistLocalId == SpotifyImportRepository.SPOTIFY_LIKED_SONGS_PLAYLIST_ID) {
+            var isMigratingLikedSongs by rememberSaveable { mutableStateOf(false) }
+            IconButton(
+              onClick = {
+                isMigratingLikedSongs = true
+                coroutineScope.launch {
+                  val result = runCatching { viewModel.migrateSpotifyLikedSongsToNativeLiked() }
+                  isMigratingLikedSongs = false
+                  result
+                    .onSuccess { migratedCount ->
+                      val message =
+                        if (migratedCount > 0) {
+                          "Added $migratedCount songs to Liked Songs."
+                        } else {
+                          "All songs are already in Liked Songs."
+                        }
+                      Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                    .onFailure {
+                      Toast.makeText(
+                          context,
+                          "Failed to migrate Spotify liked songs.",
+                          Toast.LENGTH_SHORT
+                        )
+                        .show()
+                    }
+                }
+              },
+              modifier =
+                Modifier.background(
+                  androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                  CircleShape
+                )
+            ) {
+              if (isMigratingLikedSongs) {
+                androidx.compose.material3.CircularProgressIndicator(
+                  modifier = Modifier.padding(12.dp),
+                  strokeWidth = 2.dp
+                )
+              } else {
+                Icon(
+                  painter = painterResource(R.drawable.favorite),
+                  contentDescription = "Migrate to native liked songs"
                 )
               }
             }
